@@ -1,54 +1,46 @@
-name: Build EML_Importer.exe
+name: Build EML_Importer_v2.exe
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
-  contents: write        # ← 이 줄이 핵심 (Release 생성 권한)
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
-      - name: 코드 체크아웃
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Python 3.11 설치
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 의존성 설치
-        run: pip install pywin32 pyinstaller
-
-      - name: PyInstaller로 .exe 빌드
+      - name: 빌드
         run: |
-          pyinstaller --onefile --windowed --name "EML_Importer" eml_importer.py
+          pip install pyinstaller
+          pyinstaller --onefile --windowed --name "EML_Importer_v2" eml_importer.py
 
-      - name: 태그 없을 때 임시 태그 생성
+      - name: 태그 생성 (수동 실행 시)
         if: github.ref_type != 'tag'
         run: |
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          git tag v1.0.${{ github.run_number }}
-          git push origin v1.0.${{ github.run_number }}
+          git tag v2.0.${{ github.run_number }}
+          git push origin v2.0.${{ github.run_number }}
         shell: bash
 
-      - name: Release에 .exe 업로드
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v1.0.{0}', github.run_number) }}
-          name: "EML Importer ${{ github.ref_type == 'tag' && github.ref_name || format('v1.0.{0}', github.run_number) }}"
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}
+          name: "EML Importer ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}"
           body: |
-            ## EML → Outlook PST 일괄 가져오기
-
-            1. Outlook 먼저 실행
-            2. EML_Importer.exe 다운로드 후 더블클릭
-            3. EML 폴더 선택 → 대상 폴더 선택 → 가져오기 시작
-
-            **요구사항**: Windows 10/11, Microsoft Outlook (Python 설치 불필요)
-          files: dist/EML_Importer.exe
+            ## EML → Outlook 일괄 가져오기 v2
+            PowerShell COM 방식 — Outlook 보안 설정 우회 버전
+            Python 설치 불필요, 더블클릭으로 바로 실행
+          files: dist/EML_Importer_v2.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
