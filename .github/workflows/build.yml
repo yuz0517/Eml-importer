@@ -3,12 +3,15 @@ name: Build EML_Importer.exe
 on:
   push:
     tags:
-      - 'v*'          # v1.0, v1.1 등 태그 푸시 시 자동 빌드
-  workflow_dispatch:  # GitHub 웹에서 수동 실행 버튼
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write        # ← 이 줄이 핵심 (Release 생성 권한)
 
 jobs:
   build:
-    runs-on: windows-latest   # 실제 Windows 환경에서 빌드
+    runs-on: windows-latest
 
     steps:
       - name: 코드 체크아웃
@@ -20,44 +23,32 @@ jobs:
           python-version: '3.11'
 
       - name: 의존성 설치
-        run: |
-          pip install pywin32 pyinstaller
-
-      - name: pywin32 초기화
-        run: |
-          python -c "import win32com; print('win32com OK')"
+        run: pip install pywin32 pyinstaller
 
       - name: PyInstaller로 .exe 빌드
         run: |
-          pyinstaller `
-            --onefile `
-            --windowed `
-            --name "EML_Importer" `
-            eml_importer.py
+          pyinstaller --onefile --windowed --name "EML_Importer" eml_importer.py
 
-      - name: 빌드 결과 확인
+      - name: 태그 없을 때 임시 태그 생성
+        if: github.ref_type != 'tag'
         run: |
-          dir dist\
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git tag v1.0.${{ github.run_number }}
+          git push origin v1.0.${{ github.run_number }}
+        shell: bash
 
-      - name: GitHub Release에 .exe 업로드
+      - name: Release에 .exe 업로드
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "EML Importer ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: "EML Importer ${{ github.ref_type == 'tag' && github.ref_name || format('v1.0.{0}', github.run_number) }}"
           body: |
-            ## EML → Outlook PST 일괄 가져오기 도구
+            ## EML → Outlook PST 일괄 가져오기
 
-            ### 사용법
-            1. **Outlook을 먼저 실행**하세요
-            2. `EML_Importer.exe` 다운로드 후 더블클릭
-            3. EML 폴더 선택 → Outlook 대상 폴더 선택 → 가져오기 시작
+            1. Outlook 먼저 실행
+            2. EML_Importer.exe 다운로드 후 더블클릭
+            3. EML 폴더 선택 → 대상 폴더 선택 → 가져오기 시작
 
-            ### 시스템 요구사항
-            - Windows 10 / 11
-            - Microsoft Outlook 설치 필요 (365, 2019, 2021)
-            - Python 설치 **불필요**
+            **요구사항**: Windows 10/11, Microsoft Outlook (Python 설치 불필요)
           files: dist/EML_Importer.exe
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
